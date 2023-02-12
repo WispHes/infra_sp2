@@ -63,33 +63,30 @@ python manage.py runserver
 
 - Шаблон наполнения .env расположенный по пути infra/.env
 ```bash
-DB_ENGINE=django.db.backends.postgresql # указываем, что работаем с postgresql
-DB_NAME=postgres # имя базы данных
-POSTGRES_USER=postgres # логин для подключения к базе данных
-POSTGRES_PASSWORD=postgres # пароль для подключения к БД (установите свой)
-DB_HOST=db # название сервиса (контейнера)
-DB_PORT=5432 # порт для подключения к БД 
+DB_ENGINE=<...> # указываем, что работаем с postgresql
+DB_NAME=<...> # имя базы данных
+POSTGRES_USER=<...> # логин для подключения к базе данных
+POSTGRES_PASSWORD=<...> # пароль для подключения к БД (установите свой)
+DB_HOST=<...> # название сервиса (контейнера)
+DB_PORT=<...> # порт для подключения к БД 
 ```
 - Заполнение докерфайла расположенный по пути api_yamdb/Dockerfile:
 ```bash
 FROM python:3.7-slim
 
-# Создать директорию вашего приложения.
-RUN mkdir /app
+# Сделать директорию /app рабочей директорией. 
+WORKDIR /app
 
 # Скопировать с локального компьютера файл зависимостей
 # в директорию /app.
-COPY requirements.txt /app
+COPY requirements.txt .
 
 # Выполнить установку зависимостей внутри контейнера.
-RUN pip3 install -r /app/requirements.txt --no-cache-dir
+RUN pip3 install -r requirements.txt --no-cache-dir
 
-# Скопировать содержимое директории /api_yamdb c локального компьютера
+# Скопировать содержимое директории /INFRA_SP2 c локального компьютера
 # в директорию /app.
-COPY api_yamdb/ /app
-
-# Сделать директорию /app рабочей директорией. 
-WORKDIR /app
+COPY . .
 
 # Выполнить запуск сервера разработки при старте контейнера.
 CMD ["gunicorn", "api_yamdb.wsgi:application", "--bind", "0:8000" ] 
@@ -105,9 +102,11 @@ services:
   db:
     # образ, из которого должен быть запущен контейнер
     image: postgres:13.0-alpine
+    # название контейнера  
+    container_name: db
     # volume и связанная с ним директория в контейнере
     volumes:
-      - /var/lib/postgresql/data/
+      - db:/var/lib/postgresql/data/
     # адрес файла, где хранятся переменные окружения
     env_file:
       - ./.env
@@ -116,6 +115,8 @@ services:
       context: ../
       dockerfile: api_yamdb/Dockerfile
     restart: always
+    # название контейнера  
+    container_name: web
     volumes:
       # Контейнер web будет работать с данными, хранящиеся в томе static_value, 
       # через свою директорию /app/static/
@@ -133,30 +134,29 @@ services:
   nginx:
     # образ, из которого должен быть запущен контейнер
     image: nginx:1.21.3-alpine
-
     # запросы с внешнего порта 80 перенаправляем на внутренний порт 80
     ports:
       - "80:80"
-
+    # название контейнера  
+    container_name: nginx
     volumes:
       # При сборке скопировать созданный конфиг nginx из исходной директории 
       # в контейнер и сохранить его в директорию /etc/nginx/conf.d/
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-
+      - nginx:./nginx/default.conf:/etc/nginx/conf.d/default.conf
       # Контейнер nginx будет работать с данными, хранящиеся в томе static_value, 
       # через свою директорию /var/html/static/
       - static_value:/var/html/static/
-
       # Данные, хранящиеся в томе media_value, будут доступны в контейнере nginx
       # через директорию /var/html/media/
       - media_value:/var/html/media/
-
     depends_on:
       # Контейнер nginx должен быть запущен после контейнера web
       - web
 
 volumes:
-  # Новые тома 
+  # Новые тома
+  db: 
+  nginx:
   static_value:
   media_value:
 
